@@ -30,7 +30,7 @@ from EasyLM.models.llama.llama_model import (
 
 FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     seed=42,
-    mesh_dim='1,8,1',
+    mesh_dim='1,-1,1',
     dtype='bf16',
     param_dtype='bf16',
     total_steps=15000,
