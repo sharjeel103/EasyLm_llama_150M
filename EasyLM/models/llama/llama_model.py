@@ -30,7 +30,7 @@ class LLaMAConfigurator(object):
     @classmethod
     def get_default_config(cls, updates=None):
         config = mlxu.config_dict()
-        config.base_model = 'llama_3b'
+        config.base_model = 'llama_150m'
         config.vocab_size = mlxu.config_placeholder(int)
         config.hidden_size = mlxu.config_placeholder(int)
         config.intermediate_size = mlxu.config_placeholder(int)
@@ -68,16 +68,16 @@ class LLaMAConfigurator(object):
     @classmethod
     def get_standard_llama_config(cls, model_name):
         config = mlxu.config_dict()
-        config.base_model = 'llama_3b'
-        config.vocab_size = 32000
-        config.hidden_size = 3200
-        config.intermediate_size = 8640
-        config.num_hidden_layers = 26
-        config.num_attention_heads = 32
-        config.num_key_value_heads = 32
+        config.base_model = 'llama_150m'
+        config.vocab_size = 16384
+        config.hidden_size = 1024
+        config.intermediate_size = 4096
+        config.num_hidden_layers = 8
+        config.num_attention_heads = 16
+        config.num_key_value_heads = 8
         config.initializer_range = 0.02
-        config.rms_norm_eps = 1e-6
-        config.max_position_embeddings = 2048
+        config.rms_norm_eps = 1e-5
+        config.max_position_embeddings = 1024
         config.rope_theta = 1e4
         config.embedding_dropout = 0.0
         config.feedforward_dropout = 0.0
