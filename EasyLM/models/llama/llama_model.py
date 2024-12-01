@@ -30,7 +30,7 @@ class LLaMAConfigurator(object):
     @classmethod
     def get_default_config(cls, updates=None):
         config = mlxu.config_dict()
-        config.base_model = 'llama_150m'
+        config.base_model = 'llama_184m'
         config.vocab_size = mlxu.config_placeholder(int)
         config.hidden_size = mlxu.config_placeholder(int)
         config.intermediate_size = mlxu.config_placeholder(int)
@@ -68,7 +68,7 @@ class LLaMAConfigurator(object):
     @classmethod
     def get_standard_llama_config(cls, model_name):
         config = mlxu.config_dict()
-        config.base_model = 'llama_150m'
+        config.base_model = 'llama_184m'
         config.vocab_size = 16384
         config.hidden_size = 1024
         config.intermediate_size = 4096
@@ -102,8 +102,8 @@ class LLaMAConfigurator(object):
                 num_key_value_heads=4,
                 rms_norm_eps=1e-6,
             ),
-            'llama_150m': dict( 
-                base_model='llama_150m',
+            'llama_184m': dict( 
+                base_model='llama_184m',
                 vocab_size = 16384,
                 hidden_size = 1024,
                 intermediate_size = 4096,
