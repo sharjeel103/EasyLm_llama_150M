@@ -165,7 +165,7 @@ class HuggingfaceDataset(object):
             loss_mask_buffer = []
             for index, example in enumerate(self._dataset):
                 self.step_counter += 1
-                if self.step_counter > 5100:
+                if self.step_counter > 12000:
                     self._text_processor.config.regularize = False
                 tokens, loss_masks = self.text_processor(example)
                 token_buffer.extend(tokens)
