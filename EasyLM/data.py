@@ -51,7 +51,7 @@ class TextProcessor(object):
         config.add_eos_token = True
         config.prepend_text = ''
         config.base64_token_dtype = 'i4'
-        config.regularize = True  # Default value for regularize (True)
+        # config.regularize = True  # Default value for regularize (True)
         return mlxu.update_config_dict(config, updates)
 
     def __init__(self, config, tokenizer):
@@ -114,10 +114,10 @@ class TextProcessor(object):
                 if i == 0:
                     text = self.config.prepend_text + text
 
-                if self.config.regularize:
-                    tokens = self.tokenizer.encode(text, out_type=int, enable_sampling=True, alpha=0.1, nbest_size=-1)
-                else:
-                    tokens = self.tokenizer.encode(text, out_type=int)
+                # if self.config.regularize:
+                #     tokens = self.tokenizer.encode(text, out_type=int, enable_sampling=True, alpha=0.1, nbest_size=-1)
+                # else:
+                tokens = self.tokenizer.encode(text, out_type=int)
                 token_buffer.extend(tokens)
                 loss_mask_buffer.extend([mask for _ in range(len(tokens))])
 
@@ -164,11 +164,11 @@ class HuggingfaceDataset(object):
             token_buffer = []
             loss_mask_buffer = []
             for index, example in enumerate(self._dataset):
-                self.step_counter += 1
-                if self.config.split == 'validation':
-                    self._text_processor.config.regularize = False
-                if self.step_counter > 10000 and self.config.split == 'train':
-                    self._text_processor.config.regularize = False
+                # self.step_counter += 1
+                # if self.config.split == 'validation':
+                #     self._text_processor.config.regularize = False
+                # if self.step_counter > 10000 and self.config.split == 'train':
+                #     self._text_processor.config.regularize = False
                 tokens, loss_masks = self.text_processor(example)
                 token_buffer.extend(tokens)
                 loss_mask_buffer.extend(loss_masks)
