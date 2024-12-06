@@ -140,15 +140,12 @@ def main(argv):
     set_random_seed(FLAGS.seed)
     
     model_path = hf_hub_download(repo_id=FLAGS.tokenizer, filename="tok16k.model")
-    prefix_tokenizer = CustomSPMTokenizer(model_path)  # Left truncation
-    tokenizer = CustomSPMTokenizer(model_path) 
-
     
     prefix_tokenizer = CustomSPMTokenizer(
-        truncation_side='left', padding_side='left'
+        model_path, truncation_side='left', padding_side='left'
     )
     tokenizer = CustomSPMTokenizer(
-        truncation_side='right', padding_side='right'
+        model_path, truncation_side='right', padding_side='right'
     )
     
     llama_config = LLaMAConfigurator.finalize_config(FLAGS.llama)
