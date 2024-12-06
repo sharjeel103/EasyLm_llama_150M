@@ -30,7 +30,7 @@ class LLaMAConfigurator(object):
     @classmethod
     def get_default_config(cls, updates=None):
         config = mlxu.config_dict()
-        config.base_model = 'llama_184m'
+        config.base_model = 'llama_105m'
         config.vocab_size = mlxu.config_placeholder(int)
         config.hidden_size = mlxu.config_placeholder(int)
         config.intermediate_size = mlxu.config_placeholder(int)
@@ -68,17 +68,17 @@ class LLaMAConfigurator(object):
     @classmethod
     def get_standard_llama_config(cls, model_name):
         config = mlxu.config_dict()
-        config.base_model = 'llama_184m'
+        config.base_model = 'llama_105m'
         config.vocab_size = 16384
-        config.hidden_size = 1024
-        config.intermediate_size = 4096
-        config.num_hidden_layers = 8
-        config.num_attention_heads = 16
-        config.num_key_value_heads = 8
+        config.hidden_size = 576
+        config.intermediate_size = 1536
+        config.num_hidden_layers = 30
+        config.num_attention_heads = 9
+        config.num_key_value_heads = 3
         config.initializer_range = 0.02
         config.rms_norm_eps = 1e-5
         config.max_position_embeddings = 1024
-        config.rope_theta = 1e4
+        config.rope_theta = 10000.0
         config.embedding_dropout = 0.0
         config.feedforward_dropout = 0.0
         config.attention_dropout = 0.0
@@ -101,18 +101,6 @@ class LLaMAConfigurator(object):
                 num_attention_heads=4,
                 num_key_value_heads=4,
                 rms_norm_eps=1e-6,
-            ),
-            'llama_184m': dict( 
-                base_model='llama_184m',
-                vocab_size = 16384,
-                hidden_size = 1024,
-                intermediate_size = 4096,
-                num_hidden_layers = 8,
-                num_attention_heads = 16,
-                num_key_value_heads = 8,
-                rms_norm_eps = 1e-5,
-                max_position_embeddings = 1024,
-
             ),
             'llama_1b': dict(
                 base_model='llama_1b',
