@@ -9,6 +9,8 @@ import jax.numpy as jnp
 from jax.experimental.pjit import pjit
 from jax.sharding import PartitionSpec as PS
 import optax
+import sentencepiece as spm
+from huggingface_hub import hf_hub_download
 from transformers import (
     AutoTokenizer, GenerationConfig, FlaxLogitsProcessorList
 )
@@ -38,25 +40,108 @@ FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     num_beams=1,
     add_bos_token=True,
     load_checkpoint='',
-    tokenizer='openlm-research/open_llama_3b_v2',
+    tokenizer='sharjeel103/16ktokenizer',
     llama=LLaMAConfigurator.get_default_config(),
     lm_server=LMServer.get_default_config(),
     jax_distributed=JaxDistributedConfig.get_default_config(),
 )
+import sentencepiece as spm
+import numpy as np
+
+import numpy as np
+import sentencepiece as spm
+
+class CustomSPMTokenizer:
+    def __init__(self, model_path, truncation_side='right', padding_side='right'):
+        # Load SentencePiece model
+        self.tokenizer = spm.SentencePieceProcessor(model_file=model_path)
+        
+        # Retrieve special token IDs directly from SentencePiece model
+        self.truncation_side = truncation_side
+        self.padding_side = padding_side
+        self.pad_token_id = self.tokenizer.eos_id()
+        self.bos_token_id = self.tokenizer.bos_id()
+        self.eos_token_id = self.tokenizer.eos_id()
+        self.unk_token_id = self.tokenizer.unk_id()
+
+    def encode(self, text, max_length=None, padding='max_length'):
+        tokens = self.tokenizer.encode(text)
+        
+        # Truncate tokens based on truncation_side
+        if max_length is not None:
+            if self.truncation_side == 'left' and len(tokens) > max_length:
+                tokens = tokens[-max_length:]
+            elif self.truncation_side == 'right' and len(tokens) > max_length:
+                tokens = tokens[:max_length]
+        
+        # Pad tokens if needed
+        if padding == 'max_length' and max_length is not None:
+            tokens = self._pad_sequence(tokens, max_length, self.padding_side)
+        
+        return tokens
+
+    def _pad_sequence(self, tokens, max_length, padding_side='right'):
+        # Pad sequence to the max_length
+        if len(tokens) < max_length:
+            pad_length = max_length - len(tokens)
+            if padding_side == 'left':
+                tokens = [self.pad_token_id] * pad_length + tokens
+            elif padding_side == 'right':
+                tokens += [self.pad_token_id] * pad_length
+        return tokens
+
+    def batch_encode(self, texts, max_length=None, padding=None):
+        if padding == 'longest':
+            # Calculate the maximum sequence length in the batch
+            max_length = max(len(self.tokenizer.encode(text)) for text in texts)
+        
+        # Batch encode multiple texts
+        return [self.encode(text, max_length, padding=padding) for text in texts]
+
+    def decode(self, tokens):
+        # Decode tokens to text
+        return self.tokenizer.decode(tokens)
+
+    def batch_decode(self, batch_tokens):
+        # Batch decode a list of token sequences
+        return [self.decode(tokens) for tokens in batch_tokens]
+
+    def __call__(self, text, padding='max_length', truncation=True, max_length=None, return_tensors=None):
+        if isinstance(text, list):
+            # If input is a batch, handle 'longest' padding
+            if padding == 'longest':
+                tokens = self.batch_encode(text, padding=padding)
+            else:
+                tokens = [self.encode(t, max_length, padding=padding) for t in text]
+        else:
+            # Single text encoding
+            tokens = self.encode(text, max_length, padding=padding)
+        
+        # Convert to tensor format if requested
+        if return_tensors == 'np':
+            return {'input_ids': np.array(tokens, dtype=np.int32)}
+        
+        return tokens
+
+
 
 
 def main(argv):
     JaxDistributedConfig.initialize(FLAGS.jax_distributed)
     set_random_seed(FLAGS.seed)
+    
+    model_path = hf_hub_download(repo_id=FLAGS.tokenizer, filename="tok16k.model")
+    prefix_tokenizer = CustomSPMTokenizer(model_path)  # Left truncation
+    tokenizer = CustomSPMTokenizer(model_path) 
 
-    prefix_tokenizer = AutoTokenizer.from_pretrained(
-        FLAGS.tokenizer, truncation_side='left', padding_side='left'
+    
+    prefix_tokenizer = CustomSPMTokenizer(
+        truncation_side='left', padding_side='left'
     )
-    prefix_tokenizer.pad_token = prefix_tokenizer.eos_token
-    tokenizer = AutoTokenizer.from_pretrained(
-        FLAGS.tokenizer, truncation_side='right', padding_side='right'
+    tokenizer = CustomSPMTokenizer(
+        truncation_side='right', padding_side='right'
     )
-    tokenizer.pad_token = tokenizer.eos_token
+    
     llama_config = LLaMAConfigurator.finalize_config(FLAGS.llama)
 
     with jax.default_device(jax.devices("cpu")[0]):
