@@ -78,7 +78,12 @@ class CustomSPMTokenizer:
         if padding == 'max_length' and max_length is not None:
             tokens = self._pad_sequence(tokens, max_length, self.padding_side)
         
-        return tokens
+        # Generate attention mask: 1 for real tokens, 0 for padding
+        attention_mask = [1] * len(tokens)
+        if len(tokens) < max_length:
+            attention_mask += [0] * (max_length - len(tokens))
+        
+        return tokens, attention_mask
 
     def _pad_sequence(self, tokens, max_length, padding_side='right'):
         # Pad sequence to the max_length
@@ -96,7 +101,10 @@ class CustomSPMTokenizer:
             max_length = max(len(self.tokenizer.encode(text)) for text in texts)
         
         # Batch encode multiple texts
-        return [self.encode(text, max_length, padding=padding) for text in texts]
+        encoded_texts = [self.encode(text, max_length, padding=padding) for text in texts]
+        # Return the input_ids and attention_mask as a batch
+        return [{'input_ids': np.array(tokens, dtype=np.int32), 'attention_mask': np.array(mask, dtype=np.int32)}
+                for tokens, mask in encoded_texts]
 
     def decode(self, tokens):
         # Decode tokens to text
@@ -110,19 +118,20 @@ class CustomSPMTokenizer:
         if isinstance(text, list):
             # If input is a batch, handle 'longest' padding
             if padding == 'longest':
-                tokens = self.batch_encode(text, padding=padding)
+                encoded = self.batch_encode(text, padding=padding)
             else:
-                tokens = [self.encode(t, max_length, padding=padding) for t in text]
+                encoded = [self.encode(t, max_length, padding=padding) for t in text]
         else:
             # Single text encoding
-            tokens = self.encode(text, max_length, padding=padding)
+            encoded = self.encode(text, max_length, padding=padding)
         
         # Convert to tensor format if requested
         if return_tensors == 'np':
-            return {'input_ids': np.array(tokens, dtype=np.int32)}
+            input_ids = np.array([e[0] for e in encoded], dtype=np.int32)
+            attention_mask = np.array([e[1] for e in encoded], dtype=np.int32)
+            return {'input_ids': input_ids, 'attention_mask': attention_mask}
         
-        return tokens
-
+        return encoded
 
 
 
