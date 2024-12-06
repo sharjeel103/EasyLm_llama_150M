@@ -160,12 +160,14 @@ class HuggingfaceDataset(object):
     def __iter__(self):
         chunk_size = self.config.batch_size * self.config.seq_length
         total_tokens = 0
+        if self.config.split == 'validation':
+            self._text_processor.config.regularize = False
         while True:
             token_buffer = []
             loss_mask_buffer = []
             for index, example in enumerate(self._dataset):
-                self.step_counter += 1
-                if self.step_counter > 12000:
+                self.step_counter += 1         
+                if self.step_counter > 5000:
                     self._text_processor.config.regularize = False
                 tokens, loss_masks = self.text_processor(example)
                 token_buffer.extend(tokens)
