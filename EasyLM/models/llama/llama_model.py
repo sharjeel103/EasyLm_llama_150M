@@ -102,7 +102,7 @@ class LLaMAConfigurator(object):
                 num_key_value_heads=4,
                 rms_norm_eps=1e-6,
             ),
-            'llama_105b': dict(
+            'llama_105m': dict(
                 base_model='llama_105b',
                 hidden_size=576,
                 intermediate_size=1536,
