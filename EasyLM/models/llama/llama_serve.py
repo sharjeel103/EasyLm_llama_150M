@@ -124,12 +124,27 @@ class CustomSPMTokenizer:
 
     def decode(self, tokens):
         # Decode tokens to string
-        print(tokens)
+        print("It is from batch_decode function:", tokens)  # Prints the batch tokens
+        print("Type of batch_tokens:", type(tokens))  # Prints the type (list, NumPy array, etc.)
+        if isinstance(tokens, np.ndarray):  # Check if it's a NumPy array
+            print("Shape of batch_tokens:", tokens.shape)  # Print shape if it's a NumPy array
+        else:
+            print("Length of batch_tokens:", len(tokens))  # Print length if it's a list
+
+        return [self.decode(tokens) for tokens in tokens]
+
         return self.tokenizer.decode(tokens)
 
     def batch_decode(self, batch_tokens):
+        
         # Decode batch of tokens
-        print(batch_tokens)
+        print("It is from batch_decode function:", batch_tokens)  # Prints the batch tokens
+        print("Type of batch_tokens:", type(batch_tokens))  # Prints the type (list, NumPy array, etc.)
+        if isinstance(batch_tokens, np.ndarray):  # Check if it's a NumPy array
+            print("Shape of batch_tokens:", batch_tokens.shape)  # Print shape if it's a NumPy array
+        else:
+            print("Length of batch_tokens:", len(batch_tokens))  # Print length if it's a list
+
         return [self.decode(tokens) for tokens in batch_tokens]
 
     def __call__(self, text, padding='max_length', truncation=True, max_length=None, return_tensors=None):
