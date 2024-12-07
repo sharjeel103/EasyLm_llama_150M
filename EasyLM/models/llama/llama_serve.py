@@ -121,9 +121,8 @@ class CustomSPMTokenizer:
             input_ids=np.stack([e.input_ids for e in encoded_texts]),
             attention_mask=np.stack([e.attention_mask for e in encoded_texts])
         )
-
-   def decode(self, tokens):
-    # Decode tokens to string
+    def decode(self, tokens):
+        # Decode tokens to string
         if isinstance(tokens, np.ndarray):  # Check if it's a NumPy array
             # Check if it's a 1D array (single sequence) and decode
             if tokens.ndim == 1:
@@ -136,7 +135,7 @@ class CustomSPMTokenizer:
             return self.tokenizer.decode([tokens])
         else:
             raise ValueError(f"Unsupported token type: {type(tokens)}")
-
+    
     def batch_decode(self, batch_tokens):
         # Decode batch of tokens
         if isinstance(batch_tokens, np.ndarray):  # Check if it's a NumPy array
@@ -149,6 +148,7 @@ class CustomSPMTokenizer:
             return [self.decode(tokens) for tokens in batch_tokens]
         else:
             raise ValueError(f"Unsupported batch_tokens type: {type(batch_tokens)}")
+    
 
     def __call__(self, text, padding='max_length', truncation=True, max_length=None, return_tensors=None):
         if isinstance(text, list):  # Handle batch input
