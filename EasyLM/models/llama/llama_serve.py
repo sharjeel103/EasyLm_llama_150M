@@ -429,12 +429,13 @@ def main(argv):
                     params, sharded_rng, batch, temperature
                 )
                 output = jax.device_get(output)
-            output_text = []
-            for text in list(tokenizer.batch_decode(output)):
-                if tokenizer.eos_token_id in text:
-                    text = text.split(tokenizer.eos_token_id, maxsplit=1)[0]
-                output_text.append(text)
-
+                output_text = []
+                for tokens in output:  
+                    if tokenizer.eos_token_id in tokens:
+                        eos_index = tokens.index(tokenizer.eos_token_id)  
+                        tokens = tokens[:eos_index]
+                    text = tokenizer.decode(tokens)
+                    output_text.append(text)
             return output_text
 
         @staticmethod
