@@ -35,11 +35,14 @@ from transformers import LlamaConfig, LlamaForCausalLM
 from EasyLM.models.llama.llama_model import LLaMAConfigurator
 from EasyLM.checkpoint import StreamingCheckpointer
 from EasyLM.jax_utils import float_tensor_to_dtype
-
+from huggingface_hub import HfApi
+from huggingface_hub import login
 
 FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     load_checkpoint='',
     output_dir='',
+    hf_access_token='',
+    repo_name='',
     llama=LLaMAConfigurator.get_default_config(),
 )
 
@@ -83,7 +86,7 @@ def permute(w, n_heads, input_dim, output_dim):
     ).transpose(1, 2).reshape(output_dim, input_dim)
 
 
-def write_model(loaded, model_path):
+def write_model(loaded, model_path, access_token, repo_name):
     os.makedirs(model_path, exist_ok=True)
     tmp_model_path = os.path.join(model_path, "tmp")
     os.makedirs(tmp_model_path, exist_ok=True)
@@ -181,12 +184,43 @@ def write_model(loaded, model_path):
     model.save_pretrained(model_path)
     shutil.rmtree(tmp_model_path)
 
+    login(token=access_token)
+    api = HfApi()
+    # try:
+    #     user_info = api.whoami(token=access_token)  # Authenticate directly
+    #     print(f"Logged in as: {user_info['name']}")
+    # except Exception as e:
+    #     print(f"Authentication failed: {e}")
+    #     exit(1) 
+    api.create_repo(
+        repo_id=repo_name,
+        repo_type="model",
+        exist_ok=True , # Set this to True to avoid errors if repo already exists
+        token=access_token
+    )
+    
+    for file_name in os.listdir(model_path):
+        file_path = os.path.join(model_path, file_name)  # Get the absolute file path
+        if os.path.isfile(file_path):  # Only process files
+            print(f"Uploading {file_name}...")
+            api.upload_file(
+                path_or_fileobj=file_path,
+                path_in_repo=file_name,
+                repo_id=repo_name,
+                repo_type="model",
+                commit_message=f"Upload or replace {file_name}",
+                token=access_token
+            )
+    print("All files uploaded/replaced successfully!")
 
 def main(argv):
     assert FLAGS.load_checkpoint != "" and FLAGS.output_dir != ""
     write_model(
         load_and_convert_checkpoint(FLAGS.load_checkpoint),
         model_path=FLAGS.output_dir,
+        access_token=FLAGS.hf_access_token,
+        repo_name=FLAGS.repo_name,
+        
     )
 
 
