@@ -102,6 +102,14 @@ class LLaMAConfigurator(object):
                 num_key_value_heads=4,
                 rms_norm_eps=1e-6,
             ),
+            'llama_105b': dict(
+                base_model='llama_105b',
+                hidden_size=576,
+                intermediate_size=1536,
+                num_hidden_layers=30,
+                num_attention_heads=9,
+                num_key_value_heads=3,
+            ),
             'llama_1b': dict(
                 base_model='llama_1b',
                 hidden_size=2048,
