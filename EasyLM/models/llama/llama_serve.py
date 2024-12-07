@@ -124,18 +124,18 @@ class CustomSPMTokenizer:
 
    def decode(self, tokens):
     # Decode tokens to string
-    if isinstance(tokens, np.ndarray):  # Check if it's a NumPy array
-        # Check if it's a 1D array (single sequence) and decode
-        if tokens.ndim == 1:
-            return self.tokenizer.decode(tokens.tolist())
-        # Handle other dimensions (batch of sequences)
-        return [self.tokenizer.decode(t.tolist()) for t in tokens]
-    elif isinstance(tokens, (list, tuple)):  # Handle lists or tuples
-        return self.tokenizer.decode(tokens)
-    elif isinstance(tokens, (int, np.integer)):  # Handle single integer token
-        return self.tokenizer.decode([tokens])
-    else:
-        raise ValueError(f"Unsupported token type: {type(tokens)}")
+        if isinstance(tokens, np.ndarray):  # Check if it's a NumPy array
+            # Check if it's a 1D array (single sequence) and decode
+            if tokens.ndim == 1:
+                return self.tokenizer.decode(tokens.tolist())
+            # Handle other dimensions (batch of sequences)
+            return [self.tokenizer.decode(t.tolist()) for t in tokens]
+        elif isinstance(tokens, (list, tuple)):  # Handle lists or tuples
+            return self.tokenizer.decode(tokens)
+        elif isinstance(tokens, (int, np.integer)):  # Handle single integer token
+            return self.tokenizer.decode([tokens])
+        else:
+            raise ValueError(f"Unsupported token type: {type(tokens)}")
 
     def batch_decode(self, batch_tokens):
         # Decode batch of tokens
