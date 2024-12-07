@@ -51,23 +51,27 @@ import numpy as np
 import numpy as np
 import sentencepiece as spm
 
+import sentencepiece as spm
+import numpy as np
+
+
 class CustomSPMTokenizer:
     def __init__(self, model_path, truncation_side='right', padding_side='right'):
         # Load SentencePiece model
         self.tokenizer = spm.SentencePieceProcessor(model_file=model_path)
         
-        # Retrieve special token IDs directly from SentencePiece model
+        # Set up tokenizer properties
         self.truncation_side = truncation_side
         self.padding_side = padding_side
-        self.pad_token_id = self.tokenizer.eos_id()
+        self.pad_token_id = self.tokenizer.eos_id()  # Usually pad token same as EOS
         self.bos_token_id = self.tokenizer.bos_id()
         self.eos_token_id = self.tokenizer.eos_id()
         self.unk_token_id = self.tokenizer.unk_id()
 
     def encode(self, text, max_length=None, padding='max_length'):
         tokens = self.tokenizer.encode(text)
-        
-        # Truncate tokens based on truncation_side
+
+        # Truncate tokens if needed
         if max_length is not None:
             if self.truncation_side == 'left' and len(tokens) > max_length:
                 tokens = tokens[-max_length:]
@@ -77,16 +81,15 @@ class CustomSPMTokenizer:
         # Pad tokens if needed
         if padding == 'max_length' and max_length is not None:
             tokens = self._pad_sequence(tokens, max_length, self.padding_side)
-        
-        # Generate attention mask: 1 for real tokens, 0 for padding
+
+        # Create attention mask (1 for real tokens, 0 for padding)
         attention_mask = [1] * len(tokens)
         if len(tokens) < max_length:
             attention_mask += [0] * (max_length - len(tokens))
-        
+
         return tokens, attention_mask
 
     def _pad_sequence(self, tokens, max_length, padding_side='right'):
-        # Pad sequence to the max_length
         if len(tokens) < max_length:
             pad_length = max_length - len(tokens)
             if padding_side == 'left':
@@ -95,44 +98,38 @@ class CustomSPMTokenizer:
                 tokens += [self.pad_token_id] * pad_length
         return tokens
 
-    def batch_encode(self, texts, max_length=None, padding=None):
+    def batch_encode(self, texts, max_length=None, padding='max_length'):
         if padding == 'longest':
-            # Calculate the maximum sequence length in the batch
             max_length = max(len(self.tokenizer.encode(text)) for text in texts)
         
-        # Batch encode multiple texts
+        # Encode each text in the batch
         encoded_texts = [self.encode(text, max_length, padding=padding) for text in texts]
-        # Return the input_ids and attention_mask as a batch
-        return [{'input_ids': np.array(tokens, dtype=np.int32), 'attention_mask': np.array(mask, dtype=np.int32)}
-                for tokens, mask in encoded_texts]
+        # Return token arrays and attention masks in dictionary-like format
+        return {
+            'input_ids': np.array([e[0] for e in encoded_texts], dtype=np.int32),
+            'attention_mask': np.array([e[1] for e in encoded_texts], dtype=np.int32)
+        }
 
     def decode(self, tokens):
-        # Decode tokens to text
+        # Decode tokens to string
         return self.tokenizer.decode(tokens)
 
     def batch_decode(self, batch_tokens):
-        # Batch decode a list of token sequences
+        # Decode batch of tokens
         return [self.decode(tokens) for tokens in batch_tokens]
 
     def __call__(self, text, padding='max_length', truncation=True, max_length=None, return_tensors=None):
-        if isinstance(text, list):
-            # If input is a batch, handle 'longest' padding
-            if padding == 'longest':
-                encoded = self.batch_encode(text, padding=padding)
-            else:
-                encoded = [self.encode(t, max_length, padding=padding) for t in text]
-        else:
-            # Single text encoding
-            encoded = self.encode(text, max_length, padding=padding)
+        if isinstance(text, list):  # Handle batch input
+            encoded = self.batch_encode(text, max_length=max_length, padding=padding)
+        else:  # Handle single input
+            encoded_tokens, encoded_mask = self.encode(text, max_length, padding=padding)
+            encoded = {'input_ids': np.array([encoded_tokens], dtype=np.int32),
+                       'attention_mask': np.array([encoded_mask], dtype=np.int32)}
         
-        # Convert to tensor format if requested
         if return_tensors == 'np':
-            input_ids = np.array([e[0] for e in encoded], dtype=np.int32)
-            attention_mask = np.array([e[1] for e in encoded], dtype=np.int32)
-            return {'input_ids': input_ids, 'attention_mask': attention_mask}
+            return encoded
         
         return encoded
-
 
 
 def main(argv):
