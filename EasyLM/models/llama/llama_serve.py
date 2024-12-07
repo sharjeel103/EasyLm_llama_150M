@@ -122,30 +122,33 @@ class CustomSPMTokenizer:
             attention_mask=np.stack([e.attention_mask for e in encoded_texts])
         )
 
-    def decode(self, tokens):
-        # Decode tokens to string
-        print("It is from batch_decode function:", tokens)  # Prints the batch tokens
-        print("Type of batch_tokens:", type(tokens))  # Prints the type (list, NumPy array, etc.)
-        if isinstance(tokens, np.ndarray):  # Check if it's a NumPy array
-            print("Shape of batch_tokens:", tokens.shape)  # Print shape if it's a NumPy array
-        else:
-            print("Length of batch_tokens:", len(tokens))  # Print length if it's a list
-
-        return [self.decode(tokens) for tokens in tokens]
-
+   def decode(self, tokens):
+    # Decode tokens to string
+    if isinstance(tokens, np.ndarray):  # Check if it's a NumPy array
+        # Check if it's a 1D array (single sequence) and decode
+        if tokens.ndim == 1:
+            return self.tokenizer.decode(tokens.tolist())
+        # Handle other dimensions (batch of sequences)
+        return [self.tokenizer.decode(t.tolist()) for t in tokens]
+    elif isinstance(tokens, (list, tuple)):  # Handle lists or tuples
         return self.tokenizer.decode(tokens)
+    elif isinstance(tokens, (int, np.integer)):  # Handle single integer token
+        return self.tokenizer.decode([tokens])
+    else:
+        raise ValueError(f"Unsupported token type: {type(tokens)}")
 
     def batch_decode(self, batch_tokens):
-        
         # Decode batch of tokens
-        print("It is from batch_decode function:", batch_tokens)  # Prints the batch tokens
-        print("Type of batch_tokens:", type(batch_tokens))  # Prints the type (list, NumPy array, etc.)
         if isinstance(batch_tokens, np.ndarray):  # Check if it's a NumPy array
-            print("Shape of batch_tokens:", batch_tokens.shape)  # Print shape if it's a NumPy array
+            # If it's a 2D array, decode each row
+            if batch_tokens.ndim == 2:
+                return [self.decode(tokens) for tokens in batch_tokens]
+            else:
+                raise ValueError("Unsupported batch_tokens shape for batch decoding.")
+        elif isinstance(batch_tokens, (list, tuple)):  # Handle lists or tuples
+            return [self.decode(tokens) for tokens in batch_tokens]
         else:
-            print("Length of batch_tokens:", len(batch_tokens))  # Print length if it's a list
-
-        return [self.decode(tokens) for tokens in batch_tokens]
+            raise ValueError(f"Unsupported batch_tokens type: {type(batch_tokens)}")
 
     def __call__(self, text, padding='max_length', truncation=True, max_length=None, return_tensors=None):
         if isinstance(text, list):  # Handle batch input
