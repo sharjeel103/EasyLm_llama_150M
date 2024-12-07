@@ -124,11 +124,11 @@ class CustomSPMTokenizer:
 
     def decode(self, tokens):
         # Decode tokens to string
-        return self.tokenizer.decode(tokens)
+        return self.tokenizer.decode(tokens.tolist())
 
     def batch_decode(self, batch_tokens):
         # Decode batch of tokens
-        return [self.decode(tokens) for tokens in batch_tokens]
+        return [self.decode(tokens.tolist()) for tokens in batch_tokens]
 
     def __call__(self, text, padding='max_length', truncation=True, max_length=None, return_tensors=None):
         if isinstance(text, list):  # Handle batch input
