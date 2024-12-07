@@ -186,10 +186,17 @@ def write_model(loaded, model_path, access_token, repo_name):
 
     login(token=access_token)
     api = HfApi()
+    try:
+        user_info = api.whoami(token=access_token)  # Authenticate directly
+        print(f"Logged in as: {user_info['name']}")
+    except Exception as e:
+        print(f"Authentication failed: {e}")
+        exit(1) 
     api.create_repo(
         repo_id=repo_name,
         repo_type="model",
-        exist_ok=True  # Set this to True to avoid errors if repo already exists
+        exist_ok=True , # Set this to True to avoid errors if repo already exists
+        token=access_token
     )
     
     for file_name in os.listdir(model_path):
@@ -201,7 +208,8 @@ def write_model(loaded, model_path, access_token, repo_name):
                 path_in_repo=file_name,
                 repo_id=repo_name,
                 repo_type="model",
-                commit_message=f"Upload or replace {file_name}"
+                commit_message=f"Upload or replace {file_name}",
+                token=access_token
             )
     print("All files uploaded/replaced successfully!")
 
