@@ -431,8 +431,8 @@ def main(argv):
                 output = jax.device_get(output)
             output_text = []
             for text in list(tokenizer.batch_decode(output)):
-                if tokenizer.eos_token in text:
-                    text = text.split(tokenizer.eos_token, maxsplit=1)[0]
+                if tokenizer.eos_token_id in text:
+                    text = text.split(tokenizer.eos_token_id, maxsplit=1)[0]
                 output_text.append(text)
 
             return output_text
