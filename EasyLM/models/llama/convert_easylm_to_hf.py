@@ -184,7 +184,7 @@ def write_model(loaded, model_path, access_token, repo_name):
     model.save_pretrained(model_path)
     shutil.rmtree(tmp_model_path)
 
-    login(token="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")
+    login(token=access_token)
     api = HfApi()
     # try:
     #     user_info = api.whoami(token=access_token)  # Authenticate directly
