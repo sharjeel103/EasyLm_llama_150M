@@ -184,14 +184,14 @@ def write_model(loaded, model_path, access_token, repo_name):
     model.save_pretrained(model_path)
     shutil.rmtree(tmp_model_path)
 
-    login(token=access_token)
+    login(token="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")
     api = HfApi()
-    try:
-        user_info = api.whoami(token=access_token)  # Authenticate directly
-        print(f"Logged in as: {user_info['name']}")
-    except Exception as e:
-        print(f"Authentication failed: {e}")
-        exit(1) 
+    # try:
+    #     user_info = api.whoami(token=access_token)  # Authenticate directly
+    #     print(f"Logged in as: {user_info['name']}")
+    # except Exception as e:
+    #     print(f"Authentication failed: {e}")
+    #     exit(1) 
     api.create_repo(
         repo_id=repo_name,
         repo_type="model",
