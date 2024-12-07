@@ -55,6 +55,13 @@ import sentencepiece as spm
 import numpy as np
 
 
+from collections import namedtuple
+import sentencepiece as spm
+import numpy as np
+
+# Define a named tuple for tokenizer outputs
+TokenizerOutput = namedtuple('TokenizerOutput', ['input_ids', 'attention_mask'])
+
 class CustomSPMTokenizer:
     def __init__(self, model_path, truncation_side='right', padding_side='right'):
         # Load SentencePiece model
@@ -84,10 +91,14 @@ class CustomSPMTokenizer:
 
         # Create attention mask (1 for real tokens, 0 for padding)
         attention_mask = [1] * len(tokens)
-        if len(tokens) < max_length:
+        if max_length is not None and len(tokens) < max_length:
             attention_mask += [0] * (max_length - len(tokens))
 
-        return tokens, attention_mask
+        # Return as a named tuple
+        return TokenizerOutput(
+            input_ids=np.array(tokens, dtype=np.int32),
+            attention_mask=np.array(attention_mask, dtype=np.int32)
+        )
 
     def _pad_sequence(self, tokens, max_length, padding_side='right'):
         if len(tokens) < max_length:
@@ -104,11 +115,12 @@ class CustomSPMTokenizer:
         
         # Encode each text in the batch
         encoded_texts = [self.encode(text, max_length, padding=padding) for text in texts]
-        # Return token arrays and attention masks in dictionary-like format
-        return {
-            'input_ids': np.array([e[0] for e in encoded_texts], dtype=np.int32),
-            'attention_mask': np.array([e[1] for e in encoded_texts], dtype=np.int32)
-        }
+        
+        # Stack all input IDs and attention masks into arrays
+        return TokenizerOutput(
+            input_ids=np.stack([e.input_ids for e in encoded_texts]),
+            attention_mask=np.stack([e.attention_mask for e in encoded_texts])
+        )
 
     def decode(self, tokens):
         # Decode tokens to string
@@ -122,13 +134,13 @@ class CustomSPMTokenizer:
         if isinstance(text, list):  # Handle batch input
             encoded = self.batch_encode(text, max_length=max_length, padding=padding)
         else:  # Handle single input
-            encoded_tokens, encoded_mask = self.encode(text, max_length, padding=padding)
-            encoded = {'input_ids': np.array([encoded_tokens], dtype=np.int32),
-                       'attention_mask': np.array([encoded_mask], dtype=np.int32)}
+            encoded = self.encode(text, max_length, padding=padding)
         
         if return_tensors == 'np':
+            # Return as NumPy arrays (already the case in this implementation)
             return encoded
         
+        # Return as named tuples (default)
         return encoded
 
 
