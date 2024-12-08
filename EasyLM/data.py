@@ -66,76 +66,11 @@ class TextProcessor(object):
             example, *aux = example
         else:
             aux = tuple()
-        conversation = example['conversation']  # a list of dictionaries
-        token_buffer = []
-        loss_mask_buffer = []
+ # Directly return pre-encoded tokens and loss masks
+        tokens = example["tokens"]
+        loss_masks = example["loss_mask"]
 
-        # Add BOS token at the very start (as per instructions)
-        # The instructions show a BOS at the start of the entire sequence.
-        token_buffer.append(self.tokenizer.bos_id())
-        loss_mask_buffer.append(0.0)
-
-        # The pattern for each turn:
-        # - Even index: user turn
-        #   <|start_header_id|><|user|><|end_header_id|> + user_text + <|eot_id|>
-        #   mask = 0.0 for all these tokens
-        #
-        # - Odd index: assistant turn
-        #   <|start_header_id|><|assistant|><|end_header_id|> + assistant_text + <|eot_id|>
-        #   mask = 0.0 for all headers and 1.0 for assistant_text and its closing <|eot_id|>
-
-        start_header_id = self.tokenizer.piece_to_id('<|start_header_id|>')
-        end_header_id = self.tokenizer.piece_to_id('<|end_header_id|>')
-        # For user and assistant "headers", we assume they are single pieces known to tokenizer
-        user_id = self.tokenizer.piece_to_id('<|user|>')
-        assistant_id = self.tokenizer.piece_to_id('<|assistant|>')
-        eot_id = self.tokenizer.eos_id()  # <|eot_id|>
-
-        # Iterate through conversation turns
-        for i, turn in enumerate(conversation):
-            text = list(turn.values())[0]  # Extract the text from the dictionary regardless of key
-            # Determine if user or assistant turn by index
-            if i % 2 == 0:
-                # User turn
-                # Add: <|start_header_id|><|user|><|end_header_id|>
-                token_buffer.append(start_header_id)
-                loss_mask_buffer.append(0.0)
-                token_buffer.append(user_id)
-                loss_mask_buffer.append(0.0)
-                token_buffer.append(end_header_id)
-                loss_mask_buffer.append(0.0)
-
-                # Encode user text
-                user_tokens = self.tokenizer.encode(text, out_type=int)
-                token_buffer.extend(user_tokens)
-                loss_mask_buffer.extend([0.0]*len(user_tokens))
-
-                # Add <|eot_id|>
-                token_buffer.append(eot_id)
-                loss_mask_buffer.append(0.0)
-
-            else:
-                # Assistant turn
-                # Add: <|start_header_id|><|assistant|><|end_header_id|>
-                token_buffer.append(start_header_id)
-                loss_mask_buffer.append(0.0)
-                token_buffer.append(assistant_id)
-                loss_mask_buffer.append(0.0)
-                token_buffer.append(end_header_id)
-                loss_mask_buffer.append(0.0)
-
-                # Encode assistant text
-                assistant_tokens = self.tokenizer.encode(text, out_type=int)
-                token_buffer.extend(assistant_tokens)
-                # Assistant tokens have mask = 1.0
-                loss_mask_buffer.extend([1.0]*len(assistant_tokens))
-
-                # Add <|eot_id|> after assistant text with mask=1.0
-                token_buffer.append(eot_id)
-                loss_mask_buffer.append(1.0)
-
-
-        return token_buffer, loss_mask_buffer, *aux
+        return tokens, loss_masks, *aux
 
 
 class HuggingfaceDataset(object):
@@ -169,7 +104,6 @@ class HuggingfaceDataset(object):
         self.total_tokens = 0
 
     def __iter__(self):
-        total_tokens = 0
         while True:  # Infinite loop, managed by the external training loop
             batch_input = []
             batch_target = []
@@ -177,6 +111,11 @@ class HuggingfaceDataset(object):
 
             for index, example in enumerate(self._dataset):
                 tokens, loss_masks, *aux = self._text_processor(example)
+                if len(tokens) != len(loss_masks):
+                    raise ValueError(
+                        f"Tokens and loss_mask lengths do not match. "
+                        f"Tokens length: {len(tokens)}, Loss mask length: {len(loss_masks)}"
+                    )
                 # Update total tokens
                 self.total_tokens += len(tokens)
 
