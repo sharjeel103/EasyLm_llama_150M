@@ -51,7 +51,7 @@ class TextProcessor(object):
         config.add_eos_token = True
         config.prepend_text = ''
         config.base64_token_dtype = 'i4'
-        config.regularize = True  # Default value for regularize (True)
+        # config.regularize = True  # Default value for regularize (True)
         return mlxu.update_config_dict(config, updates)
 
     def __init__(self, config, tokenizer):
@@ -66,66 +66,11 @@ class TextProcessor(object):
             example, *aux = example
         else:
             aux = tuple()
-        token_buffer = []
-        loss_mask_buffer = []
+ # Directly return pre-encoded tokens and loss masks
+        tokens = example["tokens"]
+        loss_masks = example["loss_mask"]
 
-        if self.config.add_bos_token:
-            token_buffer.append(self.tokenizer.bos_id())
-            loss_mask_buffer.append(0.0)
-
-        if self.config.fields_from_example != '':
-            fields = example[self.config.fields_from_example].split(',')
-        else:
-            fields = self.config.fields.split(',')
-
-        for i, field in enumerate(fields):
-            if field.startswith('[') and field.endswith(']'):
-                # No loss for this field.
-                field = field[1:-1]
-                mask = 0.0
-            else:
-                mask = 1.0
-
-            if field.startswith('<|') and field.endswith('|>'):
-                # Special tokens.
-                field = field[2:-2]
-                if field == 'bos':
-                    token_buffer.append(self.tokenizer.bos_id())
-                elif field == 'eos':
-                    token_buffer.append(self.tokenizer.eos_id())
-                else:
-                    # Token ID specified directly.
-                    token_buffer.append(int(field))
-                loss_mask_buffer.append(mask)
-            elif field.startswith('{') and field.endswith('}'):
-                field = field[1:-1]
-                # Base64 encoded raw tokens.
-                tokens = np.frombuffer(
-                    base64.b64decode(example[field]),
-                    dtype=self.config.base64_token_dtype
-                ).tolist()
-                token_buffer.extend(tokens)
-                loss_mask_buffer.extend([mask for _ in range(len(tokens))])
-            else:
-                subfields = field.split('+')
-                text = self.config.subfield_separator.join(
-                    [example[subfield] for subfield in subfields]
-                )
-                if i == 0:
-                    text = self.config.prepend_text + text
-
-                if self.config.regularize:
-                    tokens = self.tokenizer.encode(text, out_type=int, enable_sampling=True, alpha=0.1, nbest_size=-1)
-                else:
-                    tokens = self.tokenizer.encode(text, out_type=int)
-                token_buffer.extend(tokens)
-                loss_mask_buffer.extend([mask for _ in range(len(tokens))])
-
-        if self.config.add_eos_token:
-            token_buffer.append(self.tokenizer.eos_id())
-            loss_mask_buffer.append(1.0)
-
-        return token_buffer, loss_mask_buffer, *aux
+        return tokens, loss_masks, *aux
 
 
 class HuggingfaceDataset(object):
@@ -136,12 +81,12 @@ class HuggingfaceDataset(object):
     @staticmethod
     def get_default_config(updates=None):
         config = mlxu.config_dict()
-        config.path = 'sharjeel103/Urdu_large_dataset'
+        config.path = 'sharjeel103/Urdu_multi_turn_dataset'
         config.name = ''
         config.split = 'train'
         config.streaming = False
         config.seq_length = 1024
-        config.batch_size = 256
+        config.batch_size = 8
         config.always_start_with_bos = False
         config.batch_token_dtype = 'i4'
         return mlxu.update_config_dict(config, updates)
@@ -156,44 +101,71 @@ class HuggingfaceDataset(object):
             self.config.path, name, split=split, streaming=self.config.streaming
         )
         self.step_counter = 0
+        self.total_tokens = 0
 
     def __iter__(self):
-        chunk_size = self.config.batch_size * self.config.seq_length
-        total_tokens = 0
-        if self.config.split == 'validation':
-            self._text_processor.config.regularize = False
-        while True:
-            token_buffer = []
-            loss_mask_buffer = []
+        while True:  # Infinite loop, managed by the external training loop
+            batch_input = []
+            batch_target = []
+            batch_loss_mask = []
+
             for index, example in enumerate(self._dataset):
-                self.step_counter += 1         
-                if self.step_counter > 5000:
-                    self._text_processor.config.regularize = False
-                tokens, loss_masks = self.text_processor(example)
-                token_buffer.extend(tokens)
-                loss_mask_buffer.extend(loss_masks)
-                while len(token_buffer) > chunk_size + 1:
-                    total_tokens += chunk_size
+                tokens, loss_masks, *aux = self._text_processor(example)
+                if len(tokens) != len(loss_masks):
+                    raise ValueError(
+                        f"Tokens and loss_mask lengths do not match. "
+                        f"Tokens length: {len(tokens)}, Loss mask length: {len(loss_masks)}"
+                    )
+                # Update total tokens
+                self.total_tokens += len(tokens)
+
+                # Truncate if longer than seq_length
+                if len(tokens) > self.config.seq_length:
+                    tokens = tokens[:self.config.seq_length]
+                    loss_masks = loss_masks[:self.config.seq_length]
+
+                # Pad if shorter than seq_length
+                if len(tokens) < self.config.seq_length:
+                    pad_length = self.config.seq_length - len(tokens)
+                    tokens.extend([self._tokenizer.eos_id()] * pad_length)
+                    loss_masks.extend([0.0] * pad_length)
+
+                # Now form input_tokens, target_tokens, and loss_masks
+                input_tokens = np.array(tokens, dtype=self.config.batch_token_dtype)
+                target_tokens = np.zeros_like(input_tokens)
+                target_loss_masks = np.zeros_like(loss_masks, dtype=np.float32)
+
+                # Shift by one for target_tokens and target_loss_masks
+                if self.config.seq_length > 1:
+                    target_tokens[:-1] = input_tokens[1:]
+                    target_loss_masks[:-1] = loss_masks[1:]
+
+                # If always_start_with_bos is True, overwrite the first token with bos_id
+                if self.config.always_start_with_bos:
+                    input_tokens[0] = self._tokenizer.bos_id()
+
+                # Append to the batch
+                batch_input.append(input_tokens)
+                batch_target.append(target_tokens)
+                batch_loss_mask.append(target_loss_masks)
+
+                # Once we have a full batch, yield it
+                if len(batch_input) == self.config.batch_size:
                     metrics = {
                         'dataset_example_index': index,
-                        'dataset_total_tokens': total_tokens,
+                        'total_tokens': self.total_tokens,  # Include total_tokens in metrics
                     }
                     batch = {
-                        'input_tokens': np.array(token_buffer[:chunk_size], dtype=self.config.batch_token_dtype).reshape(
-                            self.config.batch_size, -1
-                        ),
-                        'target_tokens': np.array(token_buffer[1:chunk_size + 1], dtype=self.config.batch_token_dtype).reshape(
-                            self.config.batch_size, -1
-                        ),
-                        'loss_masks': np.array(loss_mask_buffer[1:chunk_size + 1], dtype=np.float32).reshape(
-                            self.config.batch_size, -1
-                        ),
+                        'input_tokens': np.stack(batch_input, axis=0),
+                        'target_tokens': np.stack(batch_target, axis=0),
+                        'loss_masks': np.stack(batch_loss_mask, axis=0),
                     }
-                    if self.config.always_start_with_bos:
-                        batch['input_tokens'][:, 0] = self.tokenizer.bos_id()
                     yield batch, metrics
-                    token_buffer = token_buffer[chunk_size:]
-                    loss_mask_buffer = loss_mask_buffer[chunk_size:]
+
+                    # Reset batch buffers
+                    batch_input = []
+                    batch_target = []
+                    batch_loss_mask = []
 
     def get_state_dict(self):
         return dict(config=self.config)
