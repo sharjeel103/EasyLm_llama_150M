@@ -45,14 +45,6 @@ FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     lm_server=LMServer.get_default_config(),
     jax_distributed=JaxDistributedConfig.get_default_config(),
 )
-import sentencepiece as spm
-import numpy as np
-
-import numpy as np
-import sentencepiece as spm
-
-import sentencepiece as spm
-import numpy as np
 
 
 from collections import namedtuple
@@ -290,121 +282,7 @@ def main(argv):
 
     class ModelServer(LMServer):
 
-        @staticmethod
-        def loglikelihood(prefix_text, text):
-            nonlocal sharded_rng
-            prefix = prefix_tokenizer(
-                prefix_text,
-                padding='max_length',
-                truncation=True,
-                max_length=FLAGS.input_length,
-                return_tensors='np',
-            )
-            inputs = tokenizer(
-                text,
-                padding='max_length',
-                truncation=True,
-                max_length=FLAGS.seq_length - FLAGS.input_length,
-                return_tensors='np',
-            )
-            output_tokens = np.concatenate([prefix.input_ids, inputs.input_ids], axis=1)
-            bos_tokens = np.full(
-                (output_tokens.shape[0], 1), tokenizer.bos_token_id, dtype=np.int32
-            )
-            input_tokens = np.concatenate([bos_tokens, output_tokens[:, :-1]], axis=-1)
-            input_mask = np.concatenate(
-                [prefix.attention_mask, inputs.attention_mask], axis=1
-            )
-            if FLAGS.add_bos_token:
-                bos_mask = np.ones_like(input_mask[:, :1])
-            else:
-                bos_mask = np.zeros_like(input_mask[:, :1])
-
-            input_mask = np.concatenate([bos_mask, input_mask[:, :-1]], axis=1)
-            output_mask = np.concatenate(
-                [np.zeros_like(prefix.attention_mask), inputs.attention_mask], axis=1
-            )
-            batch = dict(
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                input_mask=input_mask,
-                output_mask=output_mask,
-            )
-            with mesh:
-                loglikelihood, is_greedy, sharded_rng = forward_loglikelihood(
-                    params, sharded_rng, batch
-                )
-                loglikelihood, is_greedy = jax.device_get((loglikelihood, is_greedy))
-            return loglikelihood, is_greedy
-
-        @staticmethod
-        def loglikelihood_rolling(text):
-            nonlocal sharded_rng
-            inputs = tokenizer(
-                text,
-                padding='longest',
-                truncation=False,
-                max_length=np.iinfo(np.int32).max,
-                return_tensors='np',
-            )
-            batch_size = inputs.input_ids.shape[0]
-            output_tokens = inputs.input_ids
-            attention_mask = inputs.attention_mask
-
-            if output_tokens.shape[1] < FLAGS.seq_length:
-                padding_length = FLAGS.seq_length - output_tokens.shape[1]
-                pad_tokens = np.full(
-                    (batch_size, padding_length), tokenizer.pad_token_id, dtype=np.int32
-                )
-                output_tokens = np.concatenate([output_tokens, pad_tokens], axis=-1)
-                pad_mask = np.zeros(
-                    (batch_size, padding_length), dtype=inputs.attention_mask.dtype
-                )
-                attention_mask = np.concatenate([attention_mask, pad_mask], axis=-1)
-
-            bos_tokens = np.full(
-                (batch_size, 1), tokenizer.bos_token_id, dtype=np.int32
-            )
-            input_tokens = np.concatenate([bos_tokens, output_tokens[:, :-1]], axis=-1)
-            bos_mask = np.ones((batch_size, 1), dtype=inputs.attention_mask.dtype)
-            total_seq_length = output_tokens.shape[1]
-
-            total_loglikelihood = 0.0
-            total_is_greedy = True
-            # Sliding window
-            for i in range(0, total_seq_length, FLAGS.seq_length):
-                # Last window
-                if i + FLAGS.seq_length > total_seq_length:
-                    last_output_mask = np.copy(attention_mask[:, -FLAGS.seq_length:])
-                    last_output_mask[:, :i - total_seq_length] = 0.0
-
-                    batch = dict(
-                        input_tokens=input_tokens[:, -FLAGS.seq_length:],
-                        output_tokens=output_tokens[:, -FLAGS.seq_length:],
-                        input_mask=attention_mask[:, -FLAGS.seq_length:],
-                        output_mask=last_output_mask,
-                    )
-
-                # Normal window
-                else:
-                    batch = dict(
-                        input_tokens=input_tokens[:, i:i + FLAGS.seq_length],
-                        output_tokens=output_tokens[:, i:i + FLAGS.seq_length],
-                        input_mask=attention_mask[:, i:i + FLAGS.seq_length],
-                        output_mask=attention_mask[:, i:i + FLAGS.seq_length],
-                    )
-
-                with mesh:
-                    loglikelihood, is_greedy, sharded_rng = forward_loglikelihood(
-                        params, sharded_rng, batch
-                    )
-                    loglikelihood, is_greedy = jax.device_get((loglikelihood, is_greedy))
-
-                total_loglikelihood += loglikelihood
-                total_is_greedy = np.logical_and(is_greedy, total_is_greedy)
-
-            return total_loglikelihood, total_is_greedy
-
+       
         @staticmethod
         def generate(text, temperature):
             nonlocal sharded_rng
@@ -453,77 +331,6 @@ def main(argv):
             return output_text
 
 
-        @staticmethod
-        def greedy_until(prefix_text, until, max_length):
-            nonlocal sharded_rng
-            all_outputs = []
-        
-            for pf, ut in zip(prefix_text, until):
-                if isinstance(ut, str):
-                    ut = [ut]
-                total_length = 0
-                total_generated = ''
-        
-                while total_length < max_length:
-                    # Tokenize input text
-                    pf_tokens = tokenizer(
-                        pf,
-                        padding=False,
-                        truncation=False,
-                        max_length=np.iinfo(np.int32).max,
-                        return_tensors='np',
-                    )
-                    input_tokens = pf_tokens.input_ids
-                    attention_mask = pf_tokens.attention_mask
-        
-                    # Handle empty tokenization outputs
-                    if input_tokens.size == 0 or attention_mask.size == 0:
-                        raise ValueError("Tokenized input is empty. Check prefix_text or tokenizer configuration.")
-        
-                    # Adjust padding and truncation
-                    if input_tokens.shape[1] < FLAGS.input_length:
-                        extra = FLAGS.input_length - input_tokens.shape[1]
-                        pad_tokens = np.full((1, extra), tokenizer.pad_token_id, dtype=np.int32)
-                        input_tokens = np.concatenate([pad_tokens, input_tokens], axis=1)
-                        pad_attention = np.zeros((1, extra), dtype=attention_mask.dtype)
-                        attention_mask = np.concatenate([pad_attention, attention_mask], axis=1)
-                    elif input_tokens.shape[1] > FLAGS.input_length:
-                        input_tokens = input_tokens[:, -FLAGS.input_length:]
-                        attention_mask = attention_mask[:, -FLAGS.input_length:]
-        
-                    # Add BOS token if needed
-                    if FLAGS.add_bos_token:
-                        input_tokens[:, 0] = tokenizer.bos_token_id
-                        attention_mask[:, 0] = 1
-        
-                    # Prepare batch
-                    batch = dict(input_tokens=input_tokens, attention_mask=attention_mask)
-        
-                    # Perform generation
-                    with mesh:
-                        output, sharded_rng = forward_greedy_generate(params, sharded_rng, batch)
-                        output = jax.device_get(output)
-        
-                    # Update total length and generated text
-                    total_length += output.shape[1]
-                    output_text = tokenizer.batch_decode(output)[0]
-                    total_generated += output_text
-                    pf += output_text
-        
-                    # Check stopping condition
-                    done = False
-                    for s in ut:
-                        if s in total_generated:
-                            total_generated = total_generated.split(s, maxsplit=1)[0]
-                            done = True
-                    if done:
-                        break
-        
-                all_outputs.append(total_generated)
-        
-            return all_outputs
-
-
-
+       
 if __name__ == "__main__":
     mlxu.run(main)
