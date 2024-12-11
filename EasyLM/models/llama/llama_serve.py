@@ -408,6 +408,7 @@ def main(argv):
         @staticmethod
         def generate(text, temperature):
             nonlocal sharded_rng
+            # Tokenize input text
             inputs = prefix_tokenizer(
                 text,
                 padding='max_length',
@@ -417,26 +418,40 @@ def main(argv):
             )
             input_tokens = inputs.input_ids
             input_mask = inputs.attention_mask
+        
+            # Add BOS token if required
             if FLAGS.add_bos_token:
                 input_tokens[:, 0] = tokenizer.bos_token_id
                 input_mask[:, 0] = 1
+        
+            # Create input batch
             batch = dict(
                 input_tokens=input_tokens,
                 attention_mask=input_mask,
             )
+        
+            # Perform generation using mesh
             with mesh:
                 output, sharded_rng = forward_generate(
                     params, sharded_rng, batch, temperature
                 )
-                output = jax.device_get(output)
+                output = jax.device_get(output)  # Retrieve output from JAX
+        
+                # Process output tokens
                 output_text = []
-                for tokens in output:  
-                    if tokenizer.eos_token_id in tokens:
-                        eos_index = tokens.index(tokenizer.eos_token_id)  
-                        tokens = tokens[:eos_index]
+                for tokens in output:
+                    # Find EOS token index using NumPy
+                    eos_indices = np.where(tokens == tokenizer.eos_token_id)[0]
+                    if len(eos_indices) > 0:
+                        eos_index = eos_indices[0]
+                        tokens = tokens[:eos_index]  # Truncate at EOS
+        
+                    # Decode tokens to text
                     text = tokenizer.decode(tokens)
                     output_text.append(text)
+        
             return output_text
+
 
         @staticmethod
         def greedy_until(prefix_text, until, max_length):
