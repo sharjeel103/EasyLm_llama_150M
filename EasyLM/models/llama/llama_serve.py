@@ -457,13 +457,15 @@ def main(argv):
         def greedy_until(prefix_text, until, max_length):
             nonlocal sharded_rng
             all_outputs = []
+        
             for pf, ut in zip(prefix_text, until):
                 if isinstance(ut, str):
                     ut = [ut]
                 total_length = 0
                 total_generated = ''
-
+        
                 while total_length < max_length:
+                    # Tokenize input text
                     pf_tokens = tokenizer(
                         pf,
                         padding=False,
@@ -473,40 +475,42 @@ def main(argv):
                     )
                     input_tokens = pf_tokens.input_ids
                     attention_mask = pf_tokens.attention_mask
-
+        
+                    # Handle empty tokenization outputs
+                    if input_tokens.size == 0 or attention_mask.size == 0:
+                        raise ValueError("Tokenized input is empty. Check prefix_text or tokenizer configuration.")
+        
+                    # Adjust padding and truncation
                     if input_tokens.shape[1] < FLAGS.input_length:
                         extra = FLAGS.input_length - input_tokens.shape[1]
-                        pad_tokens = np.full(
-                            (1, extra), tokenizer.pad_token_id, dtype=np.int32
-                        )
-                        input_tokens = np.concatenate(
-                            [pad_tokens, input_tokens], axis=1
-                        )
+                        pad_tokens = np.full((1, extra), tokenizer.pad_token_id, dtype=np.int32)
+                        input_tokens = np.concatenate([pad_tokens, input_tokens], axis=1)
                         pad_attention = np.zeros((1, extra), dtype=attention_mask.dtype)
-                        attention_mask = np.concatenate(
-                            [pad_attention, attention_mask], axis=1
-                        )
+                        attention_mask = np.concatenate([pad_attention, attention_mask], axis=1)
                     elif input_tokens.shape[1] > FLAGS.input_length:
                         input_tokens = input_tokens[:, -FLAGS.input_length:]
                         attention_mask = attention_mask[:, -FLAGS.input_length:]
-
+        
+                    # Add BOS token if needed
                     if FLAGS.add_bos_token:
                         input_tokens[:, 0] = tokenizer.bos_token_id
                         attention_mask[:, 0] = 1
-
+        
+                    # Prepare batch
                     batch = dict(input_tokens=input_tokens, attention_mask=attention_mask)
-
+        
+                    # Perform generation
                     with mesh:
-                        output, sharded_rng = forward_greedy_generate(
-                            params, sharded_rng, batch
-                        )
+                        output, sharded_rng = forward_greedy_generate(params, sharded_rng, batch)
                         output = jax.device_get(output)
-
+        
+                    # Update total length and generated text
                     total_length += output.shape[1]
                     output_text = tokenizer.batch_decode(output)[0]
-                    total_generated = total_generated + output_text
-                    pf = pf + output_text
-
+                    total_generated += output_text
+                    pf += output_text
+        
+                    # Check stopping condition
                     done = False
                     for s in ut:
                         if s in total_generated:
@@ -514,14 +518,11 @@ def main(argv):
                             done = True
                     if done:
                         break
-
+        
                 all_outputs.append(total_generated)
-
+        
             return all_outputs
 
-
-    server = ModelServer(FLAGS.lm_server)
-    server.run()
 
 
 if __name__ == "__main__":
