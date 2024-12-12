@@ -85,8 +85,8 @@ class HuggingfaceDataset(object):
         config.name = ''
         config.split = 'train'
         config.streaming = False
-        config.seq_length = 1024
-        config.batch_size = 8
+        config.seq_length = 128
+        config.batch_size = 32
         config.always_start_with_bos = False
         config.batch_token_dtype = 'i4'
         return mlxu.update_config_dict(config, updates)
@@ -127,7 +127,7 @@ class HuggingfaceDataset(object):
                 # Pad if shorter than seq_length
                 if len(tokens) < self.config.seq_length:
                     pad_length = self.config.seq_length - len(tokens)
-                    tokens.extend([self._tokenizer.eos_id()] * pad_length)
+                    tokens.extend([self._tokenizer.pad_id()] * pad_length)
                     loss_masks.extend([0.0] * pad_length)
 
                 # Now form input_tokens, target_tokens, and loss_masks
