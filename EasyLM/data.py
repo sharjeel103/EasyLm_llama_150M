@@ -86,7 +86,7 @@ class HuggingfaceDataset(object):
         config.split = 'train'
         config.streaming = False
         config.seq_length = 1024
-        config.batch_size = 8
+        config.batch_size = 16
         config.always_start_with_bos = False
         config.batch_token_dtype = 'i4'
         return mlxu.update_config_dict(config, updates)
