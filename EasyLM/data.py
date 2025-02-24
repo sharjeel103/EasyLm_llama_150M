@@ -81,7 +81,7 @@ class HuggingfaceDataset(object):
     @staticmethod
     def get_default_config(updates=None):
         config = mlxu.config_dict()
-        config.path = 'sharjeel103/Urdu_multi_turn_dataset'
+        config.path = 'sharjeel103/Urdu_multi_turn_dataset_2'
         config.name = ''
         config.split = 'train'
         config.streaming = False
